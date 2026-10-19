@@ -6,8 +6,7 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 GROUP_ANON_BOT_ID = 1087968824
 SAVED_USERS_CACHE_LIMIT = 2000
 RAR_LOGO_URL = "https://raw.githubusercontent.com/romanmisarin71-maker/Rar_bot/main/RarFaceBulka.png"
-MODERATION_CHAT_ID = -1003907890387
-
+MODERATION_CHAT_ID = int(os.environ.get("MODERATION_CHAT_ID", "-1003907890387"))
 
 STATUS_CREATOR = "creator"
 STATUS_ADMINISTRATOR = "administrator"
