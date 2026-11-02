@@ -9,7 +9,7 @@ from rar.config import ADMIN_STATUSES, DUEL_ACTIONS, FAREWELL_PREFIXES, GREET_PR
 from rar.db import add_track_to_playlist, create_playlist, delete_playlist, delete_track_from_db, get_admin_rank, get_all_admins, get_all_tracks_from_db, get_broken_tracks, get_chat_members, get_db_connection, get_kall_enabled, get_owner_id, get_playlist_by_name, get_random_playlist_with_tracks, get_storage_chat_id, get_top_playlists, get_top_tracks, get_track_num, get_user_playlists, increment_play, increment_playlist_search, remove_track_from_playlist, remove_users_from_chat_batch, rename_playlist, save_track_to_db, save_username, search_track_in_db, search_track_in_db_by_title, set_admin_rank, set_kall_enabled, sleuth_chat_has_any, sleuth_create, sleuth_delete, sleuth_get, sleuth_get_all, update_chat_setting
 from rar.dialogs import ADMIN_DIALOGS, DUEL_FINAL_SOUNDS, DUEL_RAR_WIN_PHRASES, MUSIC_DIALOGS, SETTINGS_DIALOGS, SLEUTH_DIALOGS, answers_coin, answers_does, answers_hi, answers_love, answers_rar, answers_ref
 from rar.games.duel import duel_rar_turn, duel_start
-from rar.games.roulette import rl_start
+from rar.games.roulette import rl_quit, rl_start
 from rar.handlers.inline import build_playlist_message
 from rar.moderation import check_user_rank, get_chat_creator, resolve_user_from_arg, safe_promote
 from rar.state import duel_games
@@ -88,6 +88,10 @@ async def handle_message(update, context):
             break
         if handled: return
 
+    rl_quit_match = re.match(r"^(рар|rar)[,.]?\s+рулетка\s+выход\s*$", text, re.IGNORECASE)
+    if rl_quit_match:
+        await rl_quit(update, context); return
+    
     rl_match = re.match(r"^(рар|rar)[,.]?\s+рулетка\s*$", text, re.IGNORECASE)
     if rl_match:
         await rl_start(update, context); return
