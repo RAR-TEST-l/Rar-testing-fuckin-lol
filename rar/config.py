@@ -118,7 +118,7 @@ DB_POOL_MAX = 10
 DB_STALE_AFTER = 20  # если соединение простаивало дольше — проверяем его перед использованием
 
 
-MAX_CHAT_ROULETTES = 3
+MAX_CHAT_ROULETTES = 1
 
 
 SYS_CACHE_TTL = 60
