@@ -102,25 +102,20 @@ def _rl_chat_slots(chat_id, exclude_user=None):
     return n
 
 
-def _rl_interval(chat_id):
-    # Один игрок — почти без задержки (красивые анимации). Больше игроков или были
-    # flood-control — пауза растёт, лишние промежуточные кадры склеиваются (скип).
-    active = _rl_chat_slots(chat_id)
-    return 0.45 + 0.5 * max(0, active - 1) + _rl_penalty.get(chat_id, 0)
+RL_QUEUE_MAX = 10     # максимум кадров в очереди чата (защита при flood-control)
+RL_EDIT_DELAY = 0.1   # пауза между правками
 
 
-async def _rl_do_edit(bot, game):
+async def _rl_do_edit(bot, game, frame):
     chat_id = game["chat_id"]
-    for attempt in range(2):
+    for attempt in range(3):
         try:
             await bot.edit_message_text(
-                chat_id=chat_id, message_id=game["msg_id"],
-                text=rl_render(game), parse_mode="HTML",
-                reply_markup=rl_keyboard(game))
-            _rl_penalty[chat_id] = max(0.0, _rl_penalty.get(chat_id, 0.0) - 0.05)
+                chat_id=chat_id, message_id=frame["msg_id"],
+                text=frame["text"], parse_mode="HTML",
+                reply_markup=frame["markup"])
             return
         except RetryAfter as e:
-            _rl_penalty[chat_id] = min(2.5, _rl_penalty.get(chat_id, 0.0) + 0.4)
             print(f"[RL WORKER {chat_id}] Flood control, ждем {e.retry_after} сек...")
             await asyncio.sleep(e.retry_after + 1)
         except Exception as e:
@@ -134,44 +129,70 @@ async def _rl_do_edit(bot, game):
 
 
 async def _rl_edit_worker_for_chat(bot, chat_id):
-    pending = _rl_pending[chat_id]
+    queue = _rl_pending[chat_id]
     event = _rl_events[chat_id]
     while True:
-        futures = []
+        frame = None
         try:
             await event.wait()
-            if not pending:
+            if not queue:
                 event.clear()
                 continue
-            gid = next(iter(pending))          # самая давняя ожидающая игра (по кругу)
-            futures = pending.pop(gid)
-            if not pending:
+            frame = queue.pop(0)               # кадры показываются строго по порядку
+            if not queue:
                 event.clear()
-            game = roulette_games.get(gid)     # всегда берём АКТУАЛЬНЫЙ объект игры
-            if game and not game.get("finished"):
-                await _rl_do_edit(bot, game)
+            game = roulette_games.get(frame["gid"])
+            if game is not None:
+                await _rl_do_edit(bot, game, frame)
         except asyncio.CancelledError:
             raise
         except Exception as e:
             print(f"[RL WORKER FATAL {chat_id}] {e}")
             await asyncio.sleep(1)
         finally:
-            for f in futures:
-                if not f.done():
-                    f.set_result(None)
-        await asyncio.sleep(_rl_interval(chat_id))
+            if frame is not None:
+                for f in frame["futures"]:
+                    if not f.done():
+                        f.set_result(None)
+        await asyncio.sleep(RL_EDIT_DELAY)
 
 
 def _rl_enqueue(bot, game, future=None):
     chat_id = game["chat_id"]
+    try:
+        if game.get("finished"):
+            raise RuntimeError("game finished")
+        text, markup = rl_render(game), rl_keyboard(game)   # кадр фиксируется сейчас
+    except Exception:
+        if future is not None and not future.done():
+            future.set_result(None)
+        return
     if chat_id not in _rl_pending:
-        _rl_pending[chat_id] = {}
+        _rl_pending[chat_id] = []
         _rl_events[chat_id] = asyncio.Event()
         _rl_edit_tasks[chat_id] = asyncio.create_task(_rl_edit_worker_for_chat(bot, chat_id))
-    waiters = _rl_pending[chat_id].setdefault(game["gid"], [])
-    if future is not None:
-        waiters.append(future)
+    queue = _rl_pending[chat_id]
+    if len(queue) >= RL_QUEUE_MAX:
+        old = queue.pop(0)                     # очередь не растёт бесконечно при долгом flood-control
+        for f in old["futures"]:
+            if not f.done():
+                f.set_result(None)
+    queue.append({"gid": game["gid"], "msg_id": game["msg_id"], "text": text, "markup": markup,
+                  "futures": [future] if future is not None else []})
     _rl_events[chat_id].set()
+
+
+async def _rl_drain(chat_id):
+    """Ждём, пока все уже поставленные в очередь кадры чата будут показаны."""
+    if chat_id not in _rl_pending:
+        return
+    future = asyncio.get_running_loop().create_future()
+    _rl_pending[chat_id].append({"gid": None, "msg_id": None, "text": None, "markup": None, "futures": [future]})
+    _rl_events[chat_id].set()
+    try:
+        await asyncio.wait_for(future, 30)
+    except asyncio.TimeoutError:
+        pass
 
 
 async def rl_edit(context, game):
@@ -192,10 +213,11 @@ async def rl_edit_bot(bot, game):
 
 
 async def rl_finish(context, game, winner):
+    if game.get("quit"): return
     game["finished"] = True
     game["last_action"] = time.time()
     game["awaiting_next"] = (winner == "player" and game["round"] < 3)
-    _rl_pending.get(game["chat_id"], {}).pop(game["gid"], None)
+    await _rl_drain(game["chat_id"])   # дожидаемся показа уже поставленных кадров
     game["turn"] = "finished"
     game["status"] = ""
     if winner == "player":
@@ -299,9 +321,9 @@ async def rl_start(update, context):
     if chat_id not in _roulette_locks:
         _roulette_locks[chat_id] = asyncio.Lock()
     async with _roulette_locks[chat_id]:
-        # Лимит рулеток в чате (свою старую игру игрок может заменить новой)
-        if _rl_chat_slots(chat_id, exclude_user=user_id) >= MAX_CHAT_ROULETTES:
-            await update.message.reply_text(f"В этом чате уже идут {MAX_CHAT_ROULETTES} рулетки. Дождитесь окончания одной из них.")
+        # Пока в чате есть активная игра, новую не создаём никому
+        if _rl_chat_slots(chat_id) >= MAX_CHAT_ROULETTES:
+            await update.message.reply_text("В чате идет рулетка. Жди и не мешай.")
             return
 
         old_games = [(gid, g) for gid, g in roulette_games.items() if g["chat_id"] == chat_id and g["player_id"] == user_id and (not g.get("finished") or g.get("awaiting_next"))]
@@ -330,6 +352,21 @@ async def rl_start(update, context):
         game["log"] = rl_fmt("reload_info", "player", N=blanks, M=bullets)
         roulette_games[gid] = game
         await rl_edit(context, game)
+
+
+async def rl_quit(update, context):
+    chat_id = update.effective_chat.id
+    user_id = update.effective_user.id
+    game = next((g for g in roulette_games.values() if g["chat_id"] == chat_id and g["player_id"] == user_id), None)
+    if game is None: return
+    game["quit"] = True
+    game["finished"] = True
+    game["awaiting_next"] = False
+    roulette_games.pop(game["gid"], None)
+    try:
+        await context.bot.delete_message(chat_id=chat_id, message_id=game["msg_id"])
+    except Exception as e:
+        print(f"[RL QUIT {chat_id}] Не удалось удалить сообщение: {e}")
 
 
 async def rl_round2_start(context, gid, chat_id):
