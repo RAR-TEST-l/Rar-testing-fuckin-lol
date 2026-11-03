@@ -103,7 +103,7 @@ def _rl_chat_slots(chat_id, exclude_user=None):
 
 
 RL_QUEUE_MAX = 10     # максимум кадров в очереди чата (защита при flood-control)
-RL_EDIT_DELAY = 0.1   # пауза между правками
+RL_EDIT_DELAY = 0.8   # пауза между правками
 
 
 async def _rl_do_edit(bot, game, frame):
@@ -367,6 +367,7 @@ async def rl_quit(update, context):
         await context.bot.delete_message(chat_id=chat_id, message_id=game["msg_id"])
     except Exception as e:
         print(f"[RL QUIT {chat_id}] Не удалось удалить сообщение: {e}")
+    await context.bot.send_message(chat_id=chat_id, text="Конец партии.")
 
 
 async def rl_round2_start(context, gid, chat_id):
