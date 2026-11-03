@@ -103,7 +103,7 @@ def _rl_chat_slots(chat_id, exclude_user=None):
 
 
 RL_QUEUE_MAX = 10     # максимум кадров в очереди чата (защита при flood-control)
-RL_EDIT_DELAY = 2.1   # пауза между правками
+RL_EDIT_DELAY = 1.75   # пауза между правками
 
 
 async def _rl_do_edit(bot, game, frame):
