@@ -3,6 +3,26 @@ DUEL_FINAL_SOUNDS = ["БАХ", "ПАФ"]
 DUEL_PLAYER_WIN_PHRASES = ["Фуух, ты победил✨", "Победа за тобой✨", "Отличная реакция✨"]
 DUEL_RAR_WIN_PHRASES = ["ХА, Я ПОБЕДИЛА!!!", "Как же я хороша в стрельбе!", "Не зря мне доверили огнестрел!"]
 
+# Добавим в ваш файл rar/dialogs.py или в изолированный блок кода:
+
+GLITCH_DIALOGS = {
+    "start": (
+        "– Р̸а̵р̷ ̷с̶м̶о̴т̶р̸и̴т̸ ̸н̵а̶ ̴в̷а̷с̴ ̵п̶у̶с̶т̵ы̸м̷и̷ ̵г̸л̴а̶з̶а̷м̷и̶.̵.̸.̵\n"
+        "[SYSTEM]: RUNNING r∆√/err:{roul£tte}.p¥...\n"
+        "Дилер: [TREAT TERMINATED]. На кону YOUR_SESSION()"
+    ),
+    "turn_player": "<i>Ход NaN / NULL</i>",
+    "aim_self_error": "<b>TARGET CONFLICT: Ствол выстрелил из приклада!!!</b>",
+    
+    # Реплики Rar во время её ходов
+    "rar_phrases": [
+        "– we.all.love.Rar... we.all.love.Rar...",
+        "– <b>ПОЧЕМУ ТЫ СТРЕЛЯЕШЬ В МЕНЯ!?!?</b>",
+        "– NEW CONFLICT: THAT FU€KlN BA$T∆RD'll DI£",
+        "– [CONFLICT] – Я ведь обычная... каК ПРАВИЛЫ-|ЫЙ ГИТАРНЫЙ ₽ИФФ; что даже дьявол заплачет..."
+    ]
+}
+
 
 ROUND3_START_PHRASES = [
     "Последний раунд. Все всерьез.",
