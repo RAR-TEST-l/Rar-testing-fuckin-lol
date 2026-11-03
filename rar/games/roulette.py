@@ -131,6 +131,7 @@ async def _rl_do_edit(bot, game, frame):
 async def _rl_edit_worker_for_chat(bot, chat_id):
     queue = _rl_pending[chat_id]
     event = _rl_events[chat_id]
+    current_delay = RL_EDIT_DELAY
     while True:
         frame = None
         try:
@@ -139,6 +140,7 @@ async def _rl_edit_worker_for_chat(bot, chat_id):
                 event.clear()
                 continue
             frame = queue.pop(0)               # кадры показываются строго по порядку
+            current_delay = frame.get("delay", RL_EDIT_DELAY)
             if not queue:
                 event.clear()
             game = roulette_games.get(frame["gid"])
@@ -154,10 +156,10 @@ async def _rl_edit_worker_for_chat(bot, chat_id):
                 for f in frame["futures"]:
                     if not f.done():
                         f.set_result(None)
-        await asyncio.sleep(RL_EDIT_DELAY)
+        await asyncio.sleep(current_delay)
 
 
-def _rl_enqueue(bot, game, future=None):
+def _rl_enqueue(bot, game, future=None, delay=None):
     chat_id = game["chat_id"]
     try:
         if game.get("finished"):
@@ -177,8 +179,11 @@ def _rl_enqueue(bot, game, future=None):
         for f in old["futures"]:
             if not f.done():
                 f.set_result(None)
-    queue.append({"gid": game["gid"], "msg_id": game["msg_id"], "text": text, "markup": markup,
-                  "futures": [future] if future is not None else []})
+    frame = {"gid": game["gid"], "msg_id": game["msg_id"], "text": text, "markup": markup,
+             "futures": [future] if future is not None else []}
+    if delay is not None:
+        frame["delay"] = delay
+    queue.append(frame)
     _rl_events[chat_id].set()
 
 
@@ -195,21 +200,21 @@ async def _rl_drain(chat_id):
         pass
 
 
-async def rl_edit(context, game):
+async def rl_edit(context, game, delay=None):
     game["last_action"] = time.time()
-    _rl_enqueue(context.bot, game)
+    _rl_enqueue(context.bot, game, delay=delay)
 
 
-async def rl_edit_wait(context, game):
+async def rl_edit_wait(context, game, delay=None):
     game["last_action"] = time.time()
     future = asyncio.get_running_loop().create_future()
-    _rl_enqueue(context.bot, game, future)
+    _rl_enqueue(context.bot, game, future, delay=delay)
     await future
 
 
-async def rl_edit_bot(bot, game):
+async def rl_edit_bot(bot, game, delay=None):
     game["last_action"] = time.time()
-    _rl_enqueue(bot, game)
+    _rl_enqueue(bot, game, delay=delay)
 
 
 async def rl_finish(context, game, winner):
@@ -278,7 +283,7 @@ async def rl_reload_with_items(context, game, bonus):
     await rl_edit(context, game)
     await asyncio.sleep(2)
     game["log"] = rl_fmt("reload_info", "player", N=blanks, M=bullets)
-    await rl_edit_wait(context, game)
+    await rl_edit_wait(context, game, delay=2.25)
     await asyncio.sleep(1)
 
     if game["round"] == 2:
@@ -382,9 +387,9 @@ async def rl_round2_start(context, gid, chat_id):
     game = {"gid": gid, "chat_id": chat_id, "player_id": player_id, "msg_id": msg_id, "round": 2, "player_hp": cfg["hp"], "rar_hp": cfg["hp"], "player_max_hp": cfg["hp"], "rar_max_hp": cfg["hp"], "magazine": mag, "shot_idx": 0, "player_items": [], "rar_items": [], "player_zerkalo": False, "rar_zerkalo": False, "nasadka_active": False, "pila_active": False, "turn": "player", "log": "", "status": "Подготовка...", "finished": False, "last_action": time.time()}
     roulette_games[gid] = game
     game["log"] = RL_START_DIALOGS["box_appears"]
-    await rl_edit(context, game); await asyncio.sleep(0.5)
+    await rl_edit(context, game, delay=2.25); await asyncio.sleep(0.5)
     game["log"] = RL_START_DIALOGS["round2_items"]
-    await rl_edit(context, game); await asyncio.sleep(0.5)
+    await rl_edit(context, game, delay=2.25); await asyncio.sleep(0.5)
     game["player_items"].append(p_items[0]); await rl_edit(context, game); await asyncio.sleep(0.5)
     game["player_items"].append(p_items[1]); await rl_edit(context, game); await asyncio.sleep(0.5)
     game["rar_items"].append(r_items[0]); await rl_edit(context, game); await asyncio.sleep(0.5)
@@ -393,7 +398,7 @@ async def rl_round2_start(context, gid, chat_id):
     await rl_edit(context, game); await asyncio.sleep(1.5)
     game["log"] = rl_fmt("reload_info", "player", N=blanks, M=bullets)
     game["status"] = "Твой ход"
-    await rl_edit_wait(context, game)
+    await rl_edit_wait(context, game, delay=2.25)
 
 
 async def rl_round3_start(context, gid, chat_id):
@@ -411,16 +416,16 @@ async def rl_round3_start(context, gid, chat_id):
     game["log"] = f"– {start_phrase}"
     await rl_edit(context, game); await asyncio.sleep(1.5)
     game["log"] = RL_START_DIALOGS["box_appears"]
-    await rl_edit(context, game); await asyncio.sleep(0.5)
+    await rl_edit(context, game, delay=2.25); await asyncio.sleep(0.5)
     game["log"] = RL_START_DIALOGS["round3_items"]
-    await rl_edit(context, game); await asyncio.sleep(0.5)
+    await rl_edit(context, game, delay=2.25); await asyncio.sleep(0.5)
     for i in range(4):
         game["player_items"].append(p_items[i]); await rl_edit(context, game); await asyncio.sleep(0.5)
     for i in range(4):
         game["rar_items"].append(r_items[i]); await rl_edit(context, game); await asyncio.sleep(0.5)
     game["log"] = rl_fmt("reload_info", "player", N=blanks, M=bullets)
     game["status"] = "Твой ход"
-    await rl_edit_wait(context, game)
+    await rl_edit_wait(context, game, delay=2.25)
 
 
 async def rl_rar_turn(context, game):
@@ -551,7 +556,7 @@ async def _rl_rar_turn_inner(context, game):
             await rl_edit(context, game); await asyncio.sleep(1)
 
         if "adrenalin" in game["rar_items"]:
-            stealable = [it for it in game["player_items"] if it != "adrenalin"]
+            stealable = [it for it in game["player_items"]]
             if stealable:
                 stolen = random.choice(stealable)
                 game["player_items"].remove(stolen)
@@ -586,6 +591,8 @@ async def _rl_rar_turn_inner(context, game):
                     if remaining_list:
                         idx = random.randint(0, len(remaining_list) - 1)
                         game["rar_knows"] = remaining_list[idx]
+                elif stolen == "adrenalin":
+                    game["rar_hp"] -= 1
                 await rl_edit(context, game); await asyncio.sleep(0.5)
 
         if game["rar_hp"] <= 0:
@@ -1032,7 +1039,7 @@ async def rl_callback(update, context):
                 game["player_zerkalo"] = True
                 game["log"] = rl_dlg("zerkalo_use", "player")
             elif item == "adrenalin":
-                stealable = [it for it in game["rar_items"] if it != "adrenalin"]
+                stealable = [it for it in game["rar_items"]]
                 if not stealable:
                     game["log"] = rl_dlg("rar_no_items", "player")
                     await rl_edit(context, game); return
