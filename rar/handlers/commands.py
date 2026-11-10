@@ -4,6 +4,7 @@ import re
 import time
 from html import escape as html_escape
 from telegram import ChatPermissions
+from telegram.constants import ChatType
 from telegram.error import RetryAfter
 from rar.config import ADMIN_STATUSES, DUEL_ACTIONS, FAREWELL_PREFIXES, GREET_PREFIXES, GROUP_ANON_BOT_ID, PERM_NAMES_RU, PLAYLIST_LIMIT, RANK_LOW, RANK_MID, RANK_NAMES, RANK_NONE, RANK_PERMS, RANK_SENIOR, STATUS_ADMINISTRATOR, STATUS_BANNED, STATUS_CREATOR, STATUS_KICKED, STATUS_LEFT, STATUS_MEMBER, STATUS_RESTRICTED
 from rar.db import add_track_to_playlist, create_playlist, delete_playlist, delete_track_from_db, get_admin_rank, get_all_admins, get_all_tracks_from_db, get_broken_tracks, get_chat_members, get_db_connection, get_kall_enabled, get_owner_id, get_playlist_by_name, get_random_playlist_with_tracks, get_storage_chat_id, get_top_playlists, get_top_tracks, get_track_num, get_user_playlists, increment_play, increment_playlist_search, remove_track_from_playlist, remove_users_from_chat_batch, rename_playlist, save_track_to_db, save_username, search_track_in_db, search_track_in_db_by_title, set_admin_rank, set_kall_enabled, sleuth_chat_has_any, sleuth_create, sleuth_delete, sleuth_get, sleuth_get_all, update_chat_setting
@@ -26,6 +27,48 @@ async def start_command(update, context):
                 f"{SETTINGS_DIALOGS['start_body']}\n\n"
                 f"{SETTINGS_DIALOGS['start_hint']}")
         await update.message.reply_text(text, parse_mode="HTML")
+
+
+async def rar_speak_remote(update, context):
+    # 1. Жесткая проверка на владельца (сравниваем с БД)
+    owner_id = get_owner_id()
+    if not owner_id or update.effective_user.id != owner_id:
+        return  # Полная скрытность: молчим, если это не создатель
+
+    # 2. Проверка, что команда вызвана в личных сообщениях (private)
+    if update.effective_chat.type != ChatType.PRIVATE:
+        try:
+            # Пытаемся удалить сообщение, чтобы никто не видел
+            await update.message.delete()
+        except Exception:
+            pass
+        return
+
+    # 3. Валидация аргументов
+    if not context.args or len(context.args) < 2:
+        await update.message.reply_text("⚠️ Использование: <code>/say [chat_id] [текст]</code>", parse_mode="HTML")
+        return
+
+    try:
+        target_chat_id = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("⚠️ Ошибка: chat_id должен быть числом.")
+        return
+
+    text_to_send = " ".join(context.args[1:])
+
+    # 4. Отправка сообщения в целевой чат
+    try:
+        await context.bot.send_message(
+            chat_id=target_chat_id, 
+            text=text_to_send, 
+            parse_mode="HTML"
+        )
+        # 5. Успешное подтверждение
+        await update.message.reply_text("✨ Успешно отправлено!")
+    except Exception as e:
+        # 6. Понятный вывод ошибки
+        await update.message.reply_text(f"❌ Ошибка отправки:\n<code>{html_escape(str(e))}</code>", parse_mode="HTML")
 
 
 async def handle_message(update, context):
