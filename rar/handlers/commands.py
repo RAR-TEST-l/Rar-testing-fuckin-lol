@@ -30,12 +30,12 @@ async def start_command(update, context):
 
 
 async def rar_speak_remote(update, context):
-    # 1. Жесткая проверка на владельца (сравниваем с БД)
+    # 1. Жесткая проверка на владельца
     owner_id = get_owner_id()
     if not owner_id or update.effective_user.id != owner_id:
-        return  # Полная скрытность: молчим, если это не создатель
+        return
 
-    # 2. Проверка, что команда вызвана в личных сообщениях (private)
+    # 2. Проверка ЛС
     if update.effective_chat.type != ChatType.PRIVATE:
         try:
             await update.message.delete()
@@ -43,7 +43,7 @@ async def rar_speak_remote(update, context):
             pass
         return
 
-    # 3. Валидация аргументов
+    # 3. Валидация
     if not context.args or len(context.args) < 2:
         await update.message.reply_text("⚠️ Использование: <code>/say [chat_id] [текст]</code>", parse_mode="HTML")
         return
@@ -56,7 +56,7 @@ async def rar_speak_remote(update, context):
 
     text_to_send = " ".join(context.args[1:])
 
-    # 4. Отправка сообщения в целевой чат
+    # 4. Отправка
     try:
         await context.bot.send_message(
             chat_id=target_chat_id, 
@@ -69,12 +69,12 @@ async def rar_speak_remote(update, context):
 
 
 async def rar_remote_reply(update, context):
-    # 1. Жесткая проверка на владельца
+    # 1. Проверка владельца
     owner_id = get_owner_id()
     if not owner_id or update.effective_user.id != owner_id:
         return
 
-    # 2. Проверка, что это ЛС
+    # 2. Проверка ЛС
     if update.effective_chat.type != ChatType.PRIVATE:
         return
 
@@ -82,31 +82,33 @@ async def rar_remote_reply(update, context):
     if not msg:
         return
 
-    # 3. Ищем пересылку. Она может быть:
-    # - в самом сообщении (msg.forward_origin)
-    # - в сообщении, на которое мы ответили (msg.reply_to_message.forward_origin)
-    forward_src = None
-    if getattr(msg, "forward_origin", None):
-        forward_src = msg.forward_origin
-    elif msg.reply_to_message and getattr(msg.reply_to_message, "forward_origin", None):
-        forward_src = msg.reply_to_message.forward_origin
+    # --- БЛОК ОТЛАДКИ ---
+    fwd_now = getattr(msg, "forward_origin", None)
+    fwd_reply = getattr(msg.reply_to_message, "forward_origin", None) if msg.reply_to_message else None
+    print(f"[DEBUG REMOTE] text={msg.text} | caption={msg.caption} | fwd_now={fwd_now} | fwd_reply={fwd_reply}")
 
-    if not forward_src:
+    if not fwd_now and not fwd_reply:
+        return
+    # --------------------
+
+    # 3. Определяем источник
+    source_origin = fwd_now if fwd_now else fwd_reply
+    if not source_origin:
         return
 
-    # 4. Достаем chat_id и message_id из origin
-    if not hasattr(forward_src, "chat"):
-        return  # Это пересылка из профиля, а не из группы/канала
+    # 4. Проверяем, что есть чат
+    if not hasattr(source_origin, 'chat'):
+        return
 
-    target_chat_id = forward_src.chat.id
-    target_msg_id = forward_src.message_id
+    target_chat_id = source_origin.chat.id
+    target_msg_id = source_origin.message_id
 
-    # 5. Собираем текст, который ты написал при пересылке
-    text_to_send = msg.text or msg.caption
+    # 5. Текст
+    text_to_send = msg.text if msg.text else msg.caption
     if not text_to_send:
         return
 
-    # 6. Отправляем ответ в чат
+    # 6. Отправка
     try:
         await context.bot.send_message(
             chat_id=target_chat_id,
@@ -116,10 +118,9 @@ async def rar_remote_reply(update, context):
         )
         await msg.reply_text("✨ Ответ успешно отправлен в чат!")
     except Exception as e:
-        await msg.reply_text(f"❌ Ошибка отправки ответа:\n<code>{html_escape(str(e))}</code>", parse_mode="HTML")
+        await msg.reply_text(f"❌ Ошибка: <code>{html_escape(str(e))}</code>", parse_mode="HTML")
 
 
-# --- ВСЯ ОСТАЛЬНАЯ ЛОГИКА БОТА (handle_message) ---
 async def handle_message(update, context):
     global rar_replies_history, does_replies_history, recent_tracks_history, ref_replies_history, hi_replies_history
     if not update.message or not update.effective_user: return
