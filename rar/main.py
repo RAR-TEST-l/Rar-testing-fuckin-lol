@@ -67,10 +67,13 @@ def main():
     app.add_error_handler(error_handler)
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("say", rar_speak_remote))
+    
+    # Хэндлер для удаленного Reply (пересылка/ответ)
     app.add_handler(MessageHandler(
-        filters.ChatType.PRIVATE & (filters.TEXT | filters.CAPTION) & filters.FORWARDED, 
+        filters.ChatType.PRIVATE & (filters.TEXT | filters.CAPTION) & (filters.FORWARDED | filters.REPLY),
         rar_remote_reply
     ))
+    
     app.add_handler(ChatMemberHandler(handle_chat_member, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(ChatMemberHandler(handle_my_chat_member, ChatMemberHandler.MY_CHAT_MEMBER))
     app.add_handler(InlineQueryHandler(inline_query_handler))
