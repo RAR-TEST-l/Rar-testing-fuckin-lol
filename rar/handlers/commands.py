@@ -84,12 +84,15 @@ async def rar_remote_reply(update, context):
     msg = update.effective_message
 
     # 3. Проверка, что сообщение пересланное
-    if not msg.forward_from_chat or not msg.forward_from_message_id:
+    if not msg.forward_origin:
         return
 
-    # 4. Получаем исходные данные
-    chat_id = msg.forward_from_chat.id
-    source_msg_id = msg.forward_from_message_id
+    # 4. Получаем исходные данные (только если есть chat, т.е. из группы/канала)
+    if not hasattr(msg.forward_origin, 'chat'):
+        return  # Переслано из публичного профиля — отвечать некуда
+
+    chat_id = msg.forward_origin.chat.id
+    source_msg_id = msg.forward_origin.message_id
 
     # 5. Собираем текст (текст сообщения или подпись к медиа)
     text_to_send = msg.text if msg.text else msg.caption
@@ -107,7 +110,6 @@ async def rar_remote_reply(update, context):
         await msg.reply_text("✨ Ответ успешно отправлен в чат!")
     except Exception as e:
         await msg.reply_text(f"❌ Ошибка отправки ответа:\n<code>{html_escape(str(e))}</code>", parse_mode="HTML")
-
 
 async def handle_message(update, context):
     global rar_replies_history, does_replies_history, recent_tracks_history, ref_replies_history, hi_replies_history
