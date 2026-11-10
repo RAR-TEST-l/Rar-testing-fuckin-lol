@@ -68,9 +68,9 @@ def main():
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("say", rar_speak_remote))
     
-    # Хэндлер для удаленного Reply (пересылка/ответ)
+    # Ловим ВСЁ в личных сообщениях. Внутри функции отсеется лишнее.
     app.add_handler(MessageHandler(
-        filters.ChatType.PRIVATE & (filters.TEXT | filters.CAPTION) & (filters.FORWARDED | filters.REPLY),
+        filters.ChatType.PRIVATE,
         rar_remote_reply
     ))
     
