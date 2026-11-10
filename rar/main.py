@@ -8,7 +8,7 @@ from rar.config import DATABASE_URL, TOKEN
 from rar.db import get_owner_id, init_db
 from rar.dialogs import SETTINGS_DIALOGS
 from rar.games.roulette import rl_callback, rl_stuck_watchdog, rl_timeout_loop
-from rar.handlers.commands import handle_message, start_command
+from rar.handlers.commands import handle_message, start_command, rar_speak_remote
 from rar.handlers.inline import chosen_inline_result_handler, inline_query_handler, playlist_nav_handler
 from rar.handlers.members import handle_chat_member, handle_my_chat_member
 from rar.jobs import daily_track_loop, keep_database_alive, sleuth_deadline_loop
@@ -66,6 +66,7 @@ def main():
     app = Application.builder().token(TOKEN).concurrent_updates(True).post_init(on_startup).build()
     app.add_error_handler(error_handler)
     app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CommandHandler("say", rar_speak_remote))
     app.add_handler(ChatMemberHandler(handle_chat_member, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(ChatMemberHandler(handle_my_chat_member, ChatMemberHandler.MY_CHAT_MEMBER))
     app.add_handler(InlineQueryHandler(inline_query_handler))
