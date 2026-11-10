@@ -71,6 +71,44 @@ async def rar_speak_remote(update, context):
         await update.message.reply_text(f"❌ Ошибка отправки:\n<code>{html_escape(str(e))}</code>", parse_mode="HTML")
 
 
+async def rar_remote_reply(update, context):
+    # 1. Жесткая проверка на владельца
+    owner_id = get_owner_id()
+    if not owner_id or update.effective_user.id != owner_id:
+        return
+
+    # 2. Проверка, что это ЛС
+    if update.effective_chat.type != ChatType.PRIVATE:
+        return
+
+    msg = update.effective_message
+
+    # 3. Проверка, что сообщение пересланное
+    if not msg.forward_from_chat or not msg.forward_from_message_id:
+        return
+
+    # 4. Получаем исходные данные
+    chat_id = msg.forward_from_chat.id
+    source_msg_id = msg.forward_from_message_id
+
+    # 5. Собираем текст (текст сообщения или подпись к медиа)
+    text_to_send = msg.text if msg.text else msg.caption
+    if not text_to_send:
+        return
+
+    # 6. Отправка ответа (Reply)
+    try:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=text_to_send,
+            reply_to_message_id=source_msg_id,
+            parse_mode="HTML"
+        )
+        await msg.reply_text("✨ Ответ успешно отправлен в чат!")
+    except Exception as e:
+        await msg.reply_text(f"❌ Ошибка отправки ответа:\n<code>{html_escape(str(e))}</code>", parse_mode="HTML")
+
+
 async def handle_message(update, context):
     global rar_replies_history, does_replies_history, recent_tracks_history, ref_replies_history, hi_replies_history
     if not update.message or not update.effective_user: return
