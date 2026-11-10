@@ -65,14 +65,12 @@ def main():
     init_db()
     app = Application.builder().token(TOKEN).concurrent_updates(True).post_init(on_startup).build()
     app.add_error_handler(error_handler)
+    
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("say", rar_speak_remote))
     
-    # Ловим ВСЁ в личных сообщениях. Внутри функции отсеется лишнее.
-    app.add_handler(MessageHandler(
-        filters.ChatType.PRIVATE,
-        rar_remote_reply
-    ))
+    # ВАЖНО: rar_remote_reply должен идти ВЫШЕ handle_message
+    app.add_handler(MessageHandler(filters.ChatType.PRIVATE, rar_remote_reply))
     
     app.add_handler(ChatMemberHandler(handle_chat_member, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(ChatMemberHandler(handle_my_chat_member, ChatMemberHandler.MY_CHAT_MEMBER))
@@ -80,6 +78,9 @@ def main():
     app.add_handler(ChosenInlineResultHandler(chosen_inline_result_handler))
     app.add_handler(CallbackQueryHandler(playlist_nav_handler, pattern=r"^pl_\d+_\d+$"))
     app.add_handler(CallbackQueryHandler(rl_callback, pattern=r"^rl_"))
+    
+    # handle_message ВСЕГДА ПОСЛЕДНИЙ
     app.add_handler(MessageHandler(filters.ALL, handle_message))
+    
     print("Запуск бота...")
     app.run_polling(allowed_updates=["message", "chat_member", "my_chat_member", "inline_query", "chosen_inline_result", "callback_query"])
