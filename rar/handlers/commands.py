@@ -29,46 +29,52 @@ async def start_command(update, context):
         await update.message.reply_text(text, parse_mode="HTML")
 
 
-async def rar_speak_remote(update, context):
-    # 1. Жесткая проверка на владельца (сравниваем с БД)
+async def rar_remote_reply(update, context):
+    # 1. Жесткая проверка на владельца
     owner_id = get_owner_id()
     if not owner_id or update.effective_user.id != owner_id:
-        return  # Полная скрытность: молчим, если это не создатель
+        return
 
-    # 2. Проверка, что команда вызвана в личных сообщениях (private)
+    # 2. Проверка, что это ЛС
     if update.effective_chat.type != ChatType.PRIVATE:
-        try:
-            # Пытаемся удалить сообщение, чтобы никто не видел
-            await update.message.delete()
-        except Exception:
-            pass
         return
 
-    # 3. Валидация аргументов
-    if not context.args or len(context.args) < 2:
-        await update.message.reply_text("⚠️ Использование: <code>/say [chat_id] [текст]</code>", parse_mode="HTML")
+    msg = update.effective_message
+    
+    # Проверяем, есть ли пересылка в текущем сообщении или в том, на которое мы отвечаем
+    target_msg = msg
+    if not target_msg.forward_origin and msg.reply_to_message and msg.reply_to_message.forward_origin:
+        target_msg = msg.reply_to_message
+
+    # 3. Проверка, что сообщение пересланное
+    if not target_msg.forward_origin:
         return
 
-    try:
-        target_chat_id = int(context.args[0])
-    except ValueError:
-        await update.message.reply_text("⚠️ Ошибка: chat_id должен быть числом.")
+    # 4. Получаем исходные данные
+    if not hasattr(target_msg.forward_origin, 'chat'):
+        return  # Переслано из публичного профиля — отвечать некуда
+
+    chat_id = target_msg.forward_origin.chat.id
+    source_msg_id = target_msg.forward_origin.message_id
+
+    # 5. Собираем текст (текст сообщения или подпись к медиа)
+    text_to_send = msg.text if msg.text else msg.caption
+    
+    # Если текста в текущем сообщении нет (это просто пустая пересылка), ничего не делаем
+    if not text_to_send:
         return
 
-    text_to_send = " ".join(context.args[1:])
-
-    # 4. Отправка сообщения в целевой чат
+    # 6. Отправка ответа (Reply)
     try:
         await context.bot.send_message(
-            chat_id=target_chat_id, 
-            text=text_to_send, 
+            chat_id=chat_id,
+            text=text_to_send,
+            reply_to_message_id=source_msg_id,
             parse_mode="HTML"
         )
-        # 5. Успешное подтверждение
-        await update.message.reply_text("✨ Успешно отправлено!")
+        await msg.reply_text("✨ Ответ успешно отправлен в чат!")
     except Exception as e:
-        # 6. Понятный вывод ошибки
-        await update.message.reply_text(f"❌ Ошибка отправки:\n<code>{html_escape(str(e))}</code>", parse_mode="HTML")
+        await msg.reply_text(f"❌ Ошибка отправки ответа:\n<code>{html_escape(str(e))}</code>", parse_mode="HTML")
 
 
 async def rar_remote_reply(update, context):
