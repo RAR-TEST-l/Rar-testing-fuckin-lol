@@ -30,12 +30,10 @@ async def start_command(update, context):
 
 
 async def rar_speak_remote(update, context):
-    # 1. Жесткая проверка на владельца
     owner_id = get_owner_id()
     if not owner_id or update.effective_user.id != owner_id:
         return
 
-    # 2. Проверка ЛС
     if update.effective_chat.type != ChatType.PRIVATE:
         try:
             await update.message.delete()
@@ -43,7 +41,6 @@ async def rar_speak_remote(update, context):
             pass
         return
 
-    # 3. Валидация
     if not context.args or len(context.args) < 2:
         await update.message.reply_text("⚠️ Использование: <code>/say [chat_id] [текст]</code>", parse_mode="HTML")
         return
@@ -56,7 +53,6 @@ async def rar_speak_remote(update, context):
 
     text_to_send = " ".join(context.args[1:])
 
-    # 4. Отправка
     try:
         await context.bot.send_message(
             chat_id=target_chat_id, 
@@ -82,28 +78,25 @@ async def rar_remote_reply(update, context):
     if not msg:
         return
 
-    # --- БЛОК ОТЛАДКИ ---
-    fwd_now = getattr(msg, "forward_origin", None)
-    fwd_reply = getattr(msg.reply_to_message, "forward_origin", None) if msg.reply_to_message else None
-    print(f"[DEBUG REMOTE] text={msg.text} | caption={msg.caption} | fwd_now={fwd_now} | fwd_reply={fwd_reply}")
+    # 3. Ищем пересылку. Она может быть:
+    # - в самом сообщении (msg.forward_origin)
+    # - в сообщении, на которое мы ответили (msg.reply_to_message.forward_origin)
+    source_origin = getattr(msg, "forward_origin", None)
+    if not source_origin and msg.reply_to_message:
+        source_origin = getattr(msg.reply_to_message, "forward_origin", None)
 
-    if not fwd_now and not fwd_reply:
-        return
-    # --------------------
-
-    # 3. Определяем источник
-    source_origin = fwd_now if fwd_now else fwd_reply
     if not source_origin:
         return
 
-    # 4. Проверяем, что есть чат
-    if not hasattr(source_origin, 'chat'):
+    # 4. Достаем данные чата и сообщения
+    chat = getattr(source_origin, "chat", None)
+    if not chat:
         return
 
-    target_chat_id = source_origin.chat.id
+    target_chat_id = chat.id
     target_msg_id = source_origin.message_id
 
-    # 5. Текст
+    # 5. Собираем текст (текст сообщения или подпись к медиа)
     text_to_send = msg.text if msg.text else msg.caption
     if not text_to_send:
         return
@@ -118,7 +111,7 @@ async def rar_remote_reply(update, context):
         )
         await msg.reply_text("✨ Ответ успешно отправлен в чат!")
     except Exception as e:
-        await msg.reply_text(f"❌ Ошибка: <code>{html_escape(str(e))}</code>", parse_mode="HTML")
+        await msg.reply_text(f"❌ Ошибка отправки ответа:\n<code>{html_escape(str(e))}</code>", parse_mode="HTML")
 
 
 async def handle_message(update, context):
