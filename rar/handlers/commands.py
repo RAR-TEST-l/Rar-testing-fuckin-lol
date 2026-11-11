@@ -64,56 +64,6 @@ async def rar_speak_remote(update, context):
         await update.message.reply_text(f"❌ Ошибка отправки:\n<code>{html_escape(str(e))}</code>", parse_mode="HTML")
 
 
-async def rar_remote_reply(update, context):
-    # 1. Проверка владельца
-    owner_id = get_owner_id()
-    if not owner_id or update.effective_user.id != owner_id:
-        return
-
-    # 2. Проверка ЛС
-    if update.effective_chat.type != ChatType.PRIVATE:
-        return
-
-    msg = update.effective_message
-    if not msg:
-        return
-
-    # 3. Ищем пересылку. Она может быть:
-    # - в самом сообщении (msg.forward_origin)
-    # - в сообщении, на которое мы ответили (msg.reply_to_message.forward_origin)
-    source_origin = getattr(msg, "forward_origin", None)
-    if not source_origin and msg.reply_to_message:
-        source_origin = getattr(msg.reply_to_message, "forward_origin", None)
-
-    if not source_origin:
-        return
-
-    # 4. Достаем данные чата и сообщения
-    chat = getattr(source_origin, "chat", None)
-    if not chat:
-        return
-
-    target_chat_id = chat.id
-    target_msg_id = source_origin.message_id
-
-    # 5. Собираем текст (текст сообщения или подпись к медиа)
-    text_to_send = msg.text if msg.text else msg.caption
-    if not text_to_send:
-        return
-
-    # 6. Отправка
-    try:
-        await context.bot.send_message(
-            chat_id=target_chat_id,
-            text=text_to_send,
-            reply_to_message_id=target_msg_id,
-            parse_mode="HTML"
-        )
-        await msg.reply_text("✨ Ответ успешно отправлен в чат!")
-    except Exception as e:
-        await msg.reply_text(f"❌ Ошибка отправки ответа:\n<code>{html_escape(str(e))}</code>", parse_mode="HTML")
-
-
 async def handle_message(update, context):
     global rar_replies_history, does_replies_history, recent_tracks_history, ref_replies_history, hi_replies_history
     if not update.message or not update.effective_user: return
