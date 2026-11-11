@@ -8,7 +8,7 @@ from rar.config import DATABASE_URL, TOKEN
 from rar.db import get_owner_id, init_db
 from rar.dialogs import SETTINGS_DIALOGS
 from rar.games.roulette import rl_callback, rl_stuck_watchdog, rl_timeout_loop
-from rar.handlers.commands import handle_message, start_command, rar_speak_remote, rar_remote_reply
+from rar.handlers.commands import handle_message, start_command, rar_speak_remote
 from rar.handlers.inline import chosen_inline_result_handler, inline_query_handler, playlist_nav_handler
 from rar.handlers.members import handle_chat_member, handle_my_chat_member
 from rar.jobs import daily_track_loop, keep_database_alive, sleuth_deadline_loop
@@ -69,18 +69,12 @@ def main():
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("say", rar_speak_remote))
     
-    # ВАЖНО: rar_remote_reply должен идти ВЫШЕ handle_message
-    app.add_handler(MessageHandler(filters.ChatType.PRIVATE, rar_remote_reply))
-    
     app.add_handler(ChatMemberHandler(handle_chat_member, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(ChatMemberHandler(handle_my_chat_member, ChatMemberHandler.MY_CHAT_MEMBER))
     app.add_handler(InlineQueryHandler(inline_query_handler))
     app.add_handler(ChosenInlineResultHandler(chosen_inline_result_handler))
     app.add_handler(CallbackQueryHandler(playlist_nav_handler, pattern=r"^pl_\d+_\d+$"))
     app.add_handler(CallbackQueryHandler(rl_callback, pattern=r"^rl_"))
-    
-    # handle_message ВСЕГДА ПОСЛЕДНИЙ
     app.add_handler(MessageHandler(filters.ALL, handle_message))
-    
     print("Запуск бота...")
     app.run_polling(allowed_updates=["message", "chat_member", "my_chat_member", "inline_query", "chosen_inline_result", "callback_query"])
